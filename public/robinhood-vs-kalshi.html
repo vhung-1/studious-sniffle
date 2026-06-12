@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Robinhood vs Kalshi — Prediction Market Volume</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #131c2e; --border: #243149;
+    --fg: #e6edf6; --muted: #8da2bd; --kalshi: #34d399; --rh: #22c55e;
+    --rh2: #4ade80; --accent: #3b82f6; --warn: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header p { color: var(--muted); margin: 0 0 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .card .value { font-size: 24px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .kalshi .value { color: var(--kalshi); }
+  .rh .value { color: var(--rh2); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 18px 8px; margin-bottom: 20px; }
+  .panel h2 { font-size: 15px; margin: 0 0 2px; }
+  .panel .hint { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+  .chart-box { position: relative; height: 320px; }
+  .note { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.35); border-radius: 12px; padding: 14px 16px; color: #f8d488; font-size: 13.5px; margin-bottom: 22px; }
+  .note b { color: var(--warn); }
+  footer { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  .legend-inline { display:flex; gap:18px; flex-wrap:wrap; margin: 4px 0 14px; font-size:12.5px; color:var(--muted); }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Robinhood vs Kalshi — Prediction Market Volume</h1>
+    <p>How the two largest U.S. event-contract venues have scaled. Data through June 2026.</p>
+  </header>
+
+  <section class="cards">
+    <div class="card kalshi">
+      <div class="label">Kalshi · 2025 volume</div>
+      <div class="value">$23.8B</div>
+      <div class="sub">notional · +1,108% YoY</div>
+    </div>
+    <div class="card kalshi">
+      <div class="label">Kalshi · May 2026</div>
+      <div class="value">$17.98B</div>
+      <div class="sub">monthly notional, record</div>
+    </div>
+    <div class="card rh">
+      <div class="label">Robinhood · 2025 contracts</div>
+      <div class="value">~12B</div>
+      <div class="sub">event contracts traded</div>
+    </div>
+    <div class="card rh">
+      <div class="label">Robinhood · 2026 YTD</div>
+      <div class="value">~16B</div>
+      <div class="sub">contracts, through May</div>
+    </div>
+  </section>
+
+  <div class="note">
+    <b>Read the units carefully.</b> The two firms report different metrics, so this is a
+    trajectory comparison, not a like-for-like total. <b>Kalshi</b> publishes monthly
+    <i>dollar notional</i> (contracts × price, counting both sides). <b>Robinhood</b> reports
+    a <i>count of contracts</i> traded, by quarter. They are also not pure competitors:
+    Robinhood's event contracts are offered through a partnership with Kalshi's exchange, so
+    Robinhood order flow is a contributor to Kalshi's totals, not an independent market.
+  </div>
+
+  <section class="panel">
+    <h2>Kalshi — monthly trading volume</h2>
+    <p class="hint">USD notional (both sides of each trade). June 2026 is month-to-date.</p>
+    <div class="chart-box"><canvas id="kalshiChart"></canvas></div>
+  </section>
+
+  <section class="panel">
+    <h2>Robinhood — event contracts traded</h2>
+    <p class="hint">Number of contracts, reported by quarter. Q3 &amp; Q4 2025 shown; 2026 has run hotter (~16B YTD by May).</p>
+    <div class="chart-box"><canvas id="rhChart"></canvas></div>
+  </section>
+
+  <footer>
+    <p><strong>Sources:</strong>
+      Kalshi monthly notional — <a href="https://defirate.com/prediction-markets/volume/kalshi/" target="_blank" rel="noopener">DeFiRate</a>;
+      Kalshi 2025 total / YoY — <a href="https://www.rootdata.com/news/490549" target="_blank" rel="noopener">KalshiData via RootData</a>;
+      Robinhood event-contract volume — <a href="https://investors.robinhood.com/news-releases/news-release-details/robinhood-reports-third-quarter-2025-results" target="_blank" rel="noopener">Robinhood Q3 2025 results</a> and subsequent earnings commentary;
+      sector context — <a href="https://www.pewresearch.org/short-reads/2026/05/27/trading-volume-on-prediction-markets-has-soared-in-recent-months/" target="_blank" rel="noopener">Pew Research</a>,
+      <a href="https://www.theblock.co/post/404403/bernstein-calls-fifa-world-cup-a-watershed-moment-for-prediction-markets-projects-5-10b-consumer-volume-surge" target="_blank" rel="noopener">The Block</a>.
+    </p>
+    <p>Figures are publicly reported aggregates and are not adjusted for the unit/cadence differences described above. Built for the studious-sniffle prediction-market project.</p>
+  </footer>
+</div>
+
+<script>
+  // --- Publicly reported figures (see Sources). Units differ by firm. ---
+  const kalshiMonthly = {
+    labels: ["Dec '25", "Jan '26", "Feb '26", "Mar '26", "Apr '26", "May '26", "Jun '26*"],
+    values: [5.84, 9.05, 9.70, 12.29, 14.81, 17.98, 6.43] // $B notional; Jun = MTD
+  };
+  const robinhoodQuarterly = {
+    labels: ["Q3 '25", "Q4 '25"],
+    values: [2.3, 8.5] // billions of contracts
+  };
+
+  const grid = "rgba(255,255,255,0.06)";
+  const tick = "#8da2bd";
+  const baseScales = (yTitle) => ({
+    x: { grid: { color: grid }, ticks: { color: tick } },
+    y: { grid: { color: grid }, ticks: { color: tick }, title: { display: true, text: yTitle, color: tick } }
+  });
+
+  new Chart(document.getElementById("kalshiChart"), {
+    type: "line",
+    data: {
+      labels: kalshiMonthly.labels,
+      datasets: [{
+        label: "Kalshi notional ($B)",
+        data: kalshiMonthly.values,
+        borderColor: "#34d399",
+        backgroundColor: "rgba(52,211,153,0.15)",
+        fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: "#34d399"
+      }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => " $" + c.parsed.y.toFixed(2) + "B notional" } }
+      },
+      scales: baseScales("$B notional")
+    }
+  });
+
+  new Chart(document.getElementById("rhChart"), {
+    type: "bar",
+    data: {
+      labels: robinhoodQuarterly.labels,
+      datasets: [{
+        label: "Contracts (B)",
+        data: robinhoodQuarterly.values,
+        backgroundColor: "rgba(74,222,128,0.55)",
+        borderColor: "#4ade80", borderWidth: 1, borderRadius: 6
+      }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => " " + c.parsed.y.toFixed(1) + "B contracts" } }
+      },
+      scales: baseScales("Billions of contracts")
+    }
+  });
+</script>
+</body>
+</html>
