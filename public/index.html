@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prediction Market Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">📈</span>
+        <div>
+          <h1>Prediction Market Tracker</h1>
+          <p class="sub">Live odds &amp; volume from Polymarket</p>
+        </div>
+      </div>
+      <div class="status" id="status">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">Loading…</span>
+      </div>
+    </header>
+
+    <nav class="controls">
+      <div class="tabs">
+        <button class="tab active" data-tab="all">All markets</button>
+        <button class="tab" data-tab="watchlist">
+          ★ Watchlist <span class="badge" id="watchCount">0</span>
+        </button>
+      </div>
+
+      <div class="filters">
+        <input
+          type="search"
+          id="search"
+          placeholder="Search markets…"
+          autocomplete="off"
+        />
+        <select id="sort" aria-label="Sort markets by">
+          <option value="volume24hr">24h volume</option>
+          <option value="volume">Total volume</option>
+          <option value="liquidity">Liquidity</option>
+          <option value="endDate">Ending soon</option>
+        </select>
+      </div>
+    </nav>
+
+    <main id="grid" class="grid"></main>
+    <p class="empty" id="empty" hidden></p>
+
+    <footer class="foot">
+      Data: Polymarket public API · auto-refreshes every 30s ·
+      <span id="lastUpdated"></span>
+    </footer>
+
+    <template id="cardTemplate">
+      <article class="card">
+        <button class="star" title="Add to watchlist">☆</button>
+        <div class="card-head">
+          <img class="thumb" alt="" loading="lazy" />
+          <h2 class="question"></h2>
+        </div>
+        <div class="options"></div>
+        <div class="stats">
+          <div><span class="label">24h Vol</span><span class="v vol24"></span></div>
+          <div><span class="label">Volume</span><span class="v voltotal"></span></div>
+          <div><span class="label">Liquidity</span><span class="v liq"></span></div>
+          <div><span class="label">Ends</span><span class="v ends"></span></div>
+        </div>
+        <div class="chart-area" hidden>
+          <div class="chart-tabs">
+            <button data-int="1d">1D</button>
+            <button data-int="1w">1W</button>
+            <button data-int="1m" class="active">1M</button>
+            <button data-int="max">All</button>
+          </div>
+          <div class="chart-host"></div>
+        </div>
+        <div class="card-foot">
+          <button class="toggle-chart">Show chart ▾</button>
+          <a class="open-link" target="_blank" rel="noopener">Open ↗</a>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
