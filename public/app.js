@@ -363,9 +363,17 @@ async function loadKalshi() {
       series.map((s) => ({ label: s.month, value: s.adv }))
     );
 
-    const note = `Latest month: ${latest.month}` +
-      (latest.partial ? ` (partial — ${latest.calendarDays} days so far)` : "") +
-      ` · ADV = contracts ÷ calendar days · ${series.length}-month window`;
+    const sum = data.summary || {};
+    const range = sum.firstMonth
+      ? `${sum.firstMonth} → ${sum.lastMonth} (${sum.months} mo)`
+      : `${series.length} mo`;
+    const allTime = sum.allTimeContracts
+      ? ` · ${fmtNum(sum.allTimeContracts)} contracts all-time`
+      : "";
+    const note =
+      `History: ${range}${allTime} · ADV = contracts ÷ calendar days · ` +
+      `latest ${latest.month}` +
+      (latest.partial ? ` (partial — ${latest.calendarDays} days so far)` : "");
     document.getElementById("kalshiNote").textContent = note;
 
     panel.hidden = false;

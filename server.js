@@ -225,8 +225,10 @@ function parseCsv(text) {
 }
 
 // Roll daily trade counts up into monthly totals and derive ADV / MoM / YoY.
-// `rows` come from query #5741350: { date: "YYYY-MM-DD", Trades, "Cumulative Trades" }.
-function rollupKalshi(rows, monthsBack = 13) {
+// Returns the FULL monthly history (oldest first); callers slice if they want a
+// shorter window. `rows` come from query #5741350:
+// { date: "YYYY-MM-DD", Trades, "Cumulative Trades" }.
+function rollupKalshi(rows) {
   const byMonth = new Map(); // "YYYY-MM" -> { total, maxDay }
   for (const r of rows) {
     const date = r.date;
@@ -265,27 +267,39 @@ function rollupKalshi(rows, monthsBack = 13) {
     s.yoyPct = pct(s.adv, advByMonth.get(prevY));
   }
 
-  return series.slice(-monthsBack);
+  return series;
 }
 
-// GET /api/kalshi — monthly Kalshi trade activity from Dune query #5741350.
-app.get("/api/kalshi", async (_req, res) => {
+// GET /api/kalshi[?months=N] — monthly Kalshi trade activity from Dune query
+// #5741350. Returns the full history back to inception by default; pass
+// `months` to limit the window (e.g. ?months=13).
+app.get("/api/kalshi", async (req, res) => {
   if (!DUNE_KEY) {
     return res
       .status(503)
       .json({ error: "DUNE_API_KEY not configured", configured: false });
   }
   try {
-    const series = await cached(`kalshi:${KALSHI_QUERY_ID}`, 3600000, async () => {
+    const full = await cached(`kalshi:${KALSHI_QUERY_ID}`, 3600000, async () => {
       const text = await fetchText(
         `${DUNE_API}/query/${KALSHI_QUERY_ID}/results/csv`,
         { "x-dune-api-key": DUNE_KEY }
       );
       return rollupKalshi(parseCsv(text));
     });
+
+    const months = parseInt(req.query.months, 10);
+    const series = months > 0 ? full.slice(-months) : full;
+
     res.json({
       source: `Dune Analytics #${KALSHI_QUERY_ID}`,
-      latest: series[series.length - 1] || null,
+      summary: {
+        firstMonth: full[0]?.month || null,
+        lastMonth: full[full.length - 1]?.month || null,
+        months: full.length,
+        allTimeContracts: full.reduce((a, s) => a + s.totalContracts, 0),
+      },
+      latest: full[full.length - 1] || null,
       series,
     });
   } catch (err) {

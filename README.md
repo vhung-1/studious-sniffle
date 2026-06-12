@@ -45,8 +45,13 @@ underlying query refreshes roughly daily).
 The `/api/kalshi` route pulls Dune query **#5741350** ("daily Kalshi trades":
 `date, Trades, Cumulative Trades`), rolls the daily counts into monthly totals,
 and derives **ADV** (contracts ÷ calendar days — the trailing partial month is
-measured over days elapsed), plus **MoM** and **YoY** change on ADV, over a
-13-month window.
+measured over days elapsed), plus **MoM** and **YoY** change on ADV.
+
+By default it returns the **full history back to inception** (June 2021) along
+with a `summary` (first/last month, month count, all-time contracts). Pass
+`?months=N` to limit the window, e.g. `/api/kalshi?months=13`. Because the data
+is computed live from Dune on each (cached) fetch, the entire history is always
+available — there's no database to backfill.
 
 It's opt-in. Set the key in the environment — never commit it:
 
