@@ -1,9 +1,10 @@
 /**
  * Ingestion CLI.
  *
- *   tsx src/ingestion/run.ts            # continuous daemon (default)
- *   tsx src/ingestion/run.ts --once     # single catch-up pass, then exit
+ *   tsx src/ingestion/run.ts                      # continuous daemon (default)
+ *   tsx src/ingestion/run.ts --once               # single catch-up pass, then exit
  *   tsx src/ingestion/run.ts --once --max-pages=20
+ *   tsx src/ingestion/run.ts --backfill --max-pages=500   # walk history newest->oldest
  *   tsx src/ingestion/run.ts --interval=5000
  */
 import { ingestOnce, runContinuous } from "./ingest";
@@ -17,6 +18,14 @@ const has = (name: string) => process.argv.includes(`--${name}`);
 
 async function main() {
   const maxPages = arg("max-pages") ? Number(arg("max-pages")) : undefined;
+
+  if (has("backfill")) {
+    const r = await ingestOnce({ backfill: true, maxPages: maxPages ?? 500 });
+    // eslint-disable-next-line no-console
+    console.log("[ingest] backfill done:", r);
+    await prisma.$disconnect();
+    return;
+  }
 
   if (has("once")) {
     const r = await ingestOnce({ maxPages: maxPages ?? 50 });

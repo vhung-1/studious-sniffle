@@ -11,6 +11,7 @@ export interface IngestResult {
   fetched: number;
   inserted: number;
   latestCreatedTime: Date | null;
+  oldestCreatedTime: Date | null;
   durationMs: number;
 }
 
@@ -35,12 +36,18 @@ function toRow(t: KalshiTrade): Prisma.TradeCreateManyInput {
  * @param maxPages cap on pages fetched this pass (protects the first run on an
  *                 empty DB from walking the entire history unintentionally).
  */
-export async function ingestOnce(opts: { maxPages?: number } = {}): Promise<IngestResult> {
+export async function ingestOnce(
+  opts: { maxPages?: number; backfill?: boolean } = {},
+): Promise<IngestResult> {
   const started = Date.now();
   const state = await prisma.ingestState.findUnique({ where: { id: 1 } });
 
+  // Incremental mode resumes from the last seen timestamp (with overlap).
+  // Backfill mode ignores that and walks newest -> oldest via the cursor to
+  // pull historical trades; dedup by trade_id PK keeps it idempotent and the
+  // forward-only `latest` tracking below means it never regresses ingest state.
   let minTs: number | undefined;
-  if (state?.lastCreatedTime) {
+  if (!opts.backfill && state?.lastCreatedTime) {
     minTs = Math.floor(state.lastCreatedTime.getTime() / 1000) - OVERLAP_SEC;
   }
 
@@ -48,6 +55,7 @@ export async function ingestOnce(opts: { maxPages?: number } = {}): Promise<Inge
   let fetched = 0;
   let inserted = 0;
   let latest: Date | null = state?.lastCreatedTime ?? null;
+  let oldest: Date | null = null;
 
   for await (const trades of kalshi.iterateTrades(
     { minTs, limit: PAGE_LIMIT },
@@ -63,6 +71,7 @@ export async function ingestOnce(opts: { maxPages?: number } = {}): Promise<Inge
     for (const t of trades) {
       const ct = new Date(t.created_time);
       if (!latest || ct > latest) latest = ct;
+      if (!oldest || ct < oldest) oldest = ct;
     }
   }
 
@@ -84,6 +93,7 @@ export async function ingestOnce(opts: { maxPages?: number } = {}): Promise<Inge
     fetched,
     inserted,
     latestCreatedTime: latest,
+    oldestCreatedTime: oldest,
     durationMs: Date.now() - started,
   };
 }

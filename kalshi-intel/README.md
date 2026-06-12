@@ -89,6 +89,21 @@ npm run ingest                # continuous; Ctrl-C to stop
 npm run ingest:once
 ```
 
+### Backfilling history
+
+`ingest`/`ingest:once` are **forward-only** — they resume from the latest stored
+`created_time`. To pull *older* history, use backfill mode, which walks the
+Kalshi cursor newest → oldest:
+
+```bash
+npm run ingest:backfill -- --max-pages=800   # up to 800 pages × 1000 trades
+```
+
+Backfill is idempotent (deduped by `trade_id`) and never regresses the
+incremental cursor, so it's safe to run alongside or repeatedly to go deeper.
+Kalshi is very high-volume, so each 1000-trade page typically spans only a short
+wall-clock window — raise `--max-pages` to reach further back.
+
 ## Quick start (Docker)
 
 ```bash

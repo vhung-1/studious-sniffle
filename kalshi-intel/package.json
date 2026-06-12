@@ -15,7 +15,8 @@
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "ingest": "tsx src/ingestion/run.ts",
-    "ingest:once": "tsx src/ingestion/run.ts --once"
+    "ingest:once": "tsx src/ingestion/run.ts --once",
+    "ingest:backfill": "tsx src/ingestion/run.ts --backfill"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
