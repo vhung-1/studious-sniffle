@@ -1,7 +1,8 @@
 # Replit configuration — runs the Kalshi Intel dashboard in kalshi-intel/.
-# Full setup (database, migrations, ingestion) is in kalshi-intel/REPLIT.md.
+# Step-by-step setup is in kalshi-intel/REPLIT.md. The Run button uses
+# kalshi-intel/replit-run.sh, which provisions the DB and launches everything.
 
-run = "cd kalshi-intel && npx next dev -H 0.0.0.0 -p 3000"
+run = "bash kalshi-intel/replit-run.sh"
 entrypoint = "kalshi-intel/REPLIT.md"
 modules = ["nodejs-20"]
 

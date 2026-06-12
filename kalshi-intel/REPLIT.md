@@ -47,9 +47,24 @@ Optional:
 | `INGEST_PAGE_LIMIT` | `1000` | trades per page (max 1000) |
 | `SEED_PAGES` | `10` | pages pulled by `db:seed` |
 
-## 4. Install, migrate, seed
+## 4. Run the dashboard (one click)
 
-Open the **Shell** tab and run:
+Press **Run**. The root `.replit` runs `kalshi-intel/replit-run.sh`, which is
+idempotent and does everything for you:
+
+1. checks `DATABASE_URL` is set (tells you to add a database if not),
+2. `npm install` + `npx prisma generate`,
+3. `npx prisma migrate deploy` (creates the `trades` + `ingest_state` tables),
+4. **seeds** ~10 pages of recent trades the first time (skipped if data exists),
+5. starts the **background ingester** (live updates → `/tmp/ingest.log`),
+6. launches Next.js on `0.0.0.0:3000` (mapped to the public URL by `[[ports]]`).
+
+First boot takes a minute or two (install + seed); later runs are fast.
+
+### Manual equivalent (fallback)
+
+If you'd rather drive it yourself, or the Run button misbehaves, open the
+**Shell** and run the same steps:
 
 ```bash
 cd kalshi-intel
@@ -57,26 +72,16 @@ npm install
 npx prisma generate
 npx prisma migrate deploy     # creates the trades + ingest_state tables
 npm run db:seed               # pulls ~10 pages of recent trades so the UI has data
-```
-
-## 5. Run the dashboard
-
-Press **Run**. The root `.replit` starts:
-
-```bash
-cd kalshi-intel && npx next dev -H 0.0.0.0 -p 3000
+npx next dev -H 0.0.0.0 -p 3000
 ```
 
 Binding to `0.0.0.0` is required on Replit so the webview can reach it; port
 `3000` is mapped to the public URL by the `[[ports]]` block in `.replit`.
 
-If the Run button ever misbehaves (Replit's config format changes over time),
-just paste that command into the Shell — it's the whole story.
+## 5. Keep ingesting live trades
 
-## 6. Keep ingesting live trades
-
-The dashboard reads whatever is in the database; to keep it current, run the
-ingester continuously. On Replit, open a **second Shell tab** and run:
+The Run button already starts a background ingester. To run extra/independent
+ingestion, open a **second Shell tab** and run:
 
 ```bash
 cd kalshi-intel && npm run ingest          # continuous; polls every 10s
@@ -92,7 +97,7 @@ For an always-on ingester independent of the web Repl, use a **Scheduled
 Deployment** (e.g. run `npm run ingest:once` every few minutes) or a separate
 **Background Worker** Repl pointed at the same database.
 
-## 7. Deploy (optional)
+## 6. Deploy (optional)
 
 Replit **Deployments** → *Autoscale* / *Reserved VM*. The root `.replit`
 `[deployment]` section already defines:
