@@ -134,3 +134,22 @@ docker compose up --build
 `range` accepts `1h`, `24h`, `7d`, `30d`, `all` (or explicit `from`/`to` ISO timestamps).
 
 > The Kalshi trades endpoint is public — no API key required.
+
+## Performance & scale
+
+Analytics are computed live from the raw `trades` table. This is fast for
+realistic windows — at ~800K trades / 39K markets an all-time analytics call
+returns in <1s, and the live dashboard queries a rolling window (`24h` by
+default) that is a small slice of a continuously-ingested table.
+
+It degrades, however, when a very large number of trades is concentrated into a
+short time span. Stress-testing with **6.2M trades compressed into ~31 hours
+across 233K markets**, a `24h` analytics window covers nearly the whole table
+and the parallel `GROUP BY ticker` aggregates take tens of seconds. The raised
+`pool_timeout` keeps this from erroring, but the queries are still heavy.
+
+For sustained high-cardinality scale the right fix is **pre-aggregated
+rollups** — e.g. an `hourly_market_volume(ticker, hour, contracts, dollar_vol,
+trades, block_contracts)` table maintained incrementally by the ingester, so
+analytics read O(rollups) instead of O(trades). The current schema is the source
+of truth from which such rollups can always be rebuilt.
