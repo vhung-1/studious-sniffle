@@ -76,6 +76,23 @@ interactive hover tooltip, a range selector (30D / 90D / 1Y / All), a cumulative
 chart, and stat cards (latest day, 7- and 30-day averages, 30-day total, peak
 day, all-time total). It's powered by `GET /api/kalshi/daily?range=30d|90d|1y|all`.
 
+#### Standalone HTML dashboard (no server)
+
+`public/dashboard.html` is a **single, fully self-contained file** with the
+entire daily history baked in — open it directly in any browser, no server and
+no API key required. It has the same stat cards plus interactive daily,
+cumulative, and monthly-ADV charts.
+
+Regenerate / refresh it from the latest Dune data with:
+
+```bash
+npm run build:dashboard
+```
+
+This fetches the query, injects the data into `dashboard.template.html`, and
+writes `dashboard.html`. The key is read from `DUNE_API_KEY` and is **not**
+written into the output file (only the data is embedded).
+
 ## Running it
 
 ```bash

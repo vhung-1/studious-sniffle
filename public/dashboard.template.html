@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kalshi Trading Activity — Dashboard</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>"
+    />
+    <style>
+      :root {
+        --bg: #0d1117; --panel: #161b22; --panel-2: #1c2230; --border: #2a313c;
+        --text: #e6edf3; --muted: #8b949e; --accent: #3b82f6;
+        --yes: #22c55e; --no: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text); line-height: 1.4;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      .topbar {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 18px 24px; border-bottom: 1px solid var(--border);
+      }
+      .brand { display: flex; align-items: center; gap: 14px; }
+      .logo { font-size: 30px; }
+      h1 { font-size: 18px; margin: 0; }
+      .sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+      .meta { color: var(--muted); font-size: 12px; text-align: right; }
+      .stat-cards {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 14px; padding: 20px 24px 8px;
+      }
+      .stat-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+        padding: 14px 16px; display: flex; flex-direction: column; gap: 3px;
+      }
+      .stat-label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+      }
+      .stat-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .stat-sub { font-size: 12px; color: var(--muted); }
+      .chart-card {
+        background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+        margin: 16px 24px; padding: 16px 18px;
+      }
+      .chart-card-head {
+        display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+        flex-wrap: wrap; gap: 8px;
+      }
+      .chart-card-head h2 { font-size: 15px; margin: 0; }
+      .range-tabs { display: flex; gap: 6px; }
+      .range-tabs button {
+        background: var(--panel-2); border: 1px solid var(--border); color: var(--muted);
+        border-radius: 6px; padding: 4px 11px; font-size: 12px; cursor: pointer;
+      }
+      .range-tabs button.active { color: var(--text); border-color: var(--accent); }
+      .big-chart { position: relative; height: 280px; }
+      .big-chart .area-svg { width: 100%; height: 280px; display: block; overflow: visible; }
+      .big-chart .tick { fill: var(--muted); font-size: 11px; }
+      .big-chart .tip {
+        position: absolute; pointer-events: none; background: rgba(13, 17, 23, 0.95);
+        border: 1px solid var(--border); border-radius: 6px; padding: 6px 9px;
+        font-size: 12px; line-height: 1.35; white-space: nowrap; z-index: 5;
+      }
+      .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; border-top: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">📊</span>
+        <div>
+          <h1>Kalshi — Trading Activity</h1>
+          <p class="sub" id="sourceLabel"></p>
+        </div>
+      </div>
+      <div class="meta" id="meta"></div>
+    </header>
+
+    <div class="stat-cards" id="statCards"></div>
+
+    <div class="chart-card">
+      <div class="chart-card-head">
+        <h2>Daily trades</h2>
+        <div class="range-tabs" id="rangeTabs">
+          <button data-range="30">30D</button>
+          <button data-range="90">90D</button>
+          <button data-range="365">1Y</button>
+          <button data-range="0" class="active">All</button>
+        </div>
+      </div>
+      <div class="big-chart" id="dailyChart"></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-head"><h2>Cumulative trades</h2></div>
+      <div class="big-chart" id="cumChart"></div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-card-head"><h2>Monthly average daily volume (ADV)</h2></div>
+      <div class="big-chart" id="monthlyChart"></div>
+    </div>
+
+    <footer class="foot" id="foot"></footer>
+
+    <script>
+      // Data is baked in at build time — this file is fully self-contained.
+      const DATA = /*__DATA__*/ null;
+
+      // --- derive series -----------------------------------------------------
+      // DATA.daily is [["YYYY-MM-DD", trades], ...] sorted ascending.
+      let cum = 0;
+      const daily = DATA.daily.map(([date, trades]) => {
+        cum += trades;
+        return { date, trades, cumulative: cum };
+      });
+
+      // --- formatting --------------------------------------------------------
+      function fmtNum(n) {
+        if (n == null) return "—";
+        const a = Math.abs(n);
+        if (a >= 1e9) return (n / 1e9).toFixed(2) + "B";
+        if (a >= 1e6) return (n / 1e6).toFixed(2) + "M";
+        if (a >= 1e3) return (n / 1e3).toFixed(1) + "K";
+        return String(Math.round(n));
+      }
+      const fmtFull = (n) => (n == null ? "—" : Math.round(n).toLocaleString());
+      function fmtDate(iso) {
+        if (!iso) return "—";
+        const d = new Date(iso + "T00:00:00Z");
+        return d.toLocaleDateString(undefined, {
+          year: "numeric", month: "short", day: "numeric", timeZone: "UTC",
+        });
+      }
+
+      // --- stats -------------------------------------------------------------
+      const avg = (arr) => (arr.length ? arr.reduce((a, d) => a + d.trades, 0) / arr.length : 0);
+      const latest = daily[daily.length - 1];
+      const peak = daily.reduce((b, d) => (!b || d.trades > b.trades ? d : b), null);
+      const stats = {
+        latest, peak,
+        avg7: avg(daily.slice(-7)),
+        avg30: avg(daily.slice(-30)),
+        total30: daily.slice(-30).reduce((a, d) => a + d.trades, 0),
+        allTime: latest ? latest.cumulative : 0,
+        days: daily.length,
+      };
+
+      document.getElementById("sourceLabel").textContent = DATA.source;
+      document.getElementById("meta").innerHTML =
+        "Snapshot: " + new Date(DATA.generatedAt).toLocaleString() + "<br>" +
+        daily[0].date + " → " + latest.date + " · " + stats.days + " days";
+      document.getElementById("foot").textContent =
+        "Static snapshot from " + DATA.source + " · regenerate with npm run build:dashboard";
+
+      document.getElementById("statCards").innerHTML = [
+        { l: "Latest day", v: fmtNum(latest.trades), s: fmtDate(latest.date) },
+        { l: "7-day avg", v: fmtNum(stats.avg7), s: "trades / day" },
+        { l: "30-day avg", v: fmtNum(stats.avg30), s: "trades / day" },
+        { l: "30-day total", v: fmtNum(stats.total30), s: "trades" },
+        { l: "Peak day", v: fmtNum(peak.trades), s: fmtDate(peak.date) },
+        { l: "All-time", v: fmtNum(stats.allTime), s: stats.days + " days" },
+      ].map((c) =>
+        '<div class="stat-card"><span class="stat-label">' + c.l +
+        '</span><span class="stat-value">' + c.v +
+        '</span><span class="stat-sub">' + c.s + "</span></div>"
+      ).join("");
+
+      // --- area chart with hover --------------------------------------------
+      function renderArea(host, points, key, color, unit) {
+        if (!points || points.length < 2) {
+          host.innerHTML = '<div class="tick" style="padding:120px 0;text-align:center">Not enough data.</div>';
+          return;
+        }
+        const W = 1000, H = 280, padX = 8, padTop = 12, padBot = 22;
+        const vals = points.map((p) => p[key]);
+        const max = Math.max(...vals, 1), min = Math.min(...vals, 0);
+        const span = max - min || 1, n = points.length;
+        const xAt = (i) => padX + (i / (n - 1)) * (W - 2 * padX);
+        const yAt = (v) => padTop + (1 - (v - min) / span) * (H - padTop - padBot);
+        const coords = points.map((p, i) => [xAt(i), yAt(p[key])]);
+        const line = coords.map(([x, y], i) => (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1)).join(" ");
+        const area = line + " L" + coords[n - 1][0].toFixed(1) + " " + (H - padBot) +
+          " L" + coords[0][0].toFixed(1) + " " + (H - padBot) + " Z";
+
+        const ticks = [];
+        const tc = Math.min(6, n);
+        for (let t = 0; t < tc; t++) {
+          const i = Math.round((t / (tc - 1)) * (n - 1));
+          const anchor = t === 0 ? "start" : t === tc - 1 ? "end" : "middle";
+          ticks.push('<text x="' + xAt(i).toFixed(1) + '" y="' + (H - 6) +
+            '" class="tick" text-anchor="' + anchor + '">' +
+            fmtDate(points[i].date).replace(/,/, "") + "</text>");
+        }
+        const gid = "g-" + key;
+        host.innerHTML =
+          '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" class="area-svg">' +
+          '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="' + color + '" stop-opacity="0.35"/>' +
+          '<stop offset="100%" stop-color="' + color + '" stop-opacity="0"/></linearGradient></defs>' +
+          '<path d="' + area + '" fill="url(#' + gid + ')"/>' +
+          '<path d="' + line + '" fill="none" stroke="' + color + '" stroke-width="2" ' +
+          'stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' +
+          '<line class="guide" x1="0" y1="' + padTop + '" x2="0" y2="' + (H - padBot) +
+          '" stroke="' + color + '" stroke-width="1" opacity="0"/>' +
+          '<circle class="dot" r="3.5" fill="' + color + '" opacity="0"/>' +
+          ticks.join("") + "</svg><div class=\"tip\" hidden></div>";
+
+        wireHover(host, { points, key, unit, coords });
+      }
+
+      function wireHover(host, ctx) {
+        const svg = host.querySelector("svg");
+        const guide = svg.querySelector(".guide");
+        const dot = svg.querySelector(".dot");
+        const tip = host.querySelector(".tip");
+        const { points, key, unit, coords } = ctx;
+        const move = (e) => {
+          const rect = svg.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+          const i = Math.round(ratio * (points.length - 1));
+          const p = points[i], cx = coords[i][0], cy = coords[i][1];
+          guide.setAttribute("x1", cx); guide.setAttribute("x2", cx); guide.setAttribute("opacity", "0.5");
+          dot.setAttribute("cx", cx); dot.setAttribute("cy", cy); dot.setAttribute("opacity", "1");
+          tip.hidden = false;
+          tip.innerHTML = "<strong>" + fmtDate(p.date) + "</strong><br>" + fmtFull(p[key]) + " " + unit;
+          const hostRect = host.getBoundingClientRect();
+          let left = clientX - hostRect.left + 12;
+          if (left > hostRect.width - 130) left = clientX - hostRect.left - 130;
+          tip.style.left = Math.max(4, left) + "px";
+          tip.style.top = "8px";
+        };
+        const leave = () => {
+          guide.setAttribute("opacity", "0"); dot.setAttribute("opacity", "0"); tip.hidden = true;
+        };
+        svg.addEventListener("mousemove", move);
+        svg.addEventListener("mouseleave", leave);
+        svg.addEventListener("touchstart", move, { passive: true });
+        svg.addEventListener("touchmove", move, { passive: true });
+        svg.addEventListener("touchend", leave);
+      }
+
+      // --- monthly ADV bar chart --------------------------------------------
+      function renderMonthly(host) {
+        const byMonth = new Map();
+        for (const d of daily) {
+          const m = d.date.slice(0, 7);
+          const day = Number(d.date.slice(8, 10));
+          const cur = byMonth.get(m) || { total: 0, maxDay: 0 };
+          cur.total += d.trades; cur.maxDay = Math.max(cur.maxDay, day);
+          byMonth.set(m, cur);
+        }
+        const months = [...byMonth.keys()].sort();
+        const lastM = months[months.length - 1];
+        const series = months.map((m) => {
+          const { total, maxDay } = byMonth.get(m);
+          const [y, mo] = m.split("-").map(Number);
+          const dim = new Date(y, mo, 0).getDate();
+          const partial = m === lastM && maxDay < dim;
+          const days = partial ? maxDay : dim;
+          return { date: m, adv: days ? total / days : 0 };
+        });
+        const W = 1000, H = 280, padBot = 22, padTop = 12;
+        const max = Math.max(...series.map((s) => s.adv), 1);
+        const gap = 3, bw = (W - gap * (series.length - 1)) / series.length;
+        const bars = series.map((s, i) => {
+          const h = Math.max(2, (s.adv / max) * (H - padTop - padBot));
+          const x = i * (bw + gap), y = H - padBot - h;
+          const last = i === series.length - 1;
+          return '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) +
+            '" height="' + h.toFixed(1) + '" rx="2" fill="' + (last ? "#3b82f6" : "#2f6fd0") +
+            '" opacity="' + (last ? 1 : 0.65) + '"><title>' + s.date + ": " + fmtNum(s.adv) +
+            " ADV</title></rect>";
+        }).join("");
+        host.innerHTML = '<svg viewBox="0 0 ' + W + " " + H +
+          '" preserveAspectRatio="none" class="area-svg">' + bars + "</svg>";
+      }
+
+      // --- range selector + boot --------------------------------------------
+      function draw(rangeDays) {
+        const series = rangeDays > 0 ? daily.slice(-rangeDays) : daily;
+        renderArea(document.getElementById("dailyChart"), series, "trades", "#3b82f6", "trades");
+        renderArea(document.getElementById("cumChart"), series, "cumulative", "#22c55e", "cumulative");
+      }
+      document.getElementById("rangeTabs").querySelectorAll("button").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          document.getElementById("rangeTabs").querySelectorAll("button")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          draw(Number(btn.dataset.range));
+        })
+      );
+      draw(0);
+      renderMonthly(document.getElementById("monthlyChart"));
+    </script>
+  </body>
+</html>
