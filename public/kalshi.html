@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kalshi Daily Activity · Prediction Market Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>"
+    />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">📊</span>
+        <div>
+          <h1>Kalshi — Daily Trading Activity</h1>
+          <p class="sub" id="sourceLabel">Dune Analytics #5741350</p>
+        </div>
+      </div>
+      <div class="status">
+        <a class="back-link" href="/">← Markets</a>
+      </div>
+    </header>
+
+    <section id="notconfigured" class="empty" hidden>
+      Daily data requires a Dune API key. Set <code>DUNE_API_KEY</code> and
+      restart the server.
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="stat-cards" id="statCards"></div>
+
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h2>Daily trades</h2>
+          <div class="range-tabs" id="rangeTabs">
+            <button data-range="30d">30D</button>
+            <button data-range="90d">90D</button>
+            <button data-range="1y">1Y</button>
+            <button data-range="all" class="active">All</button>
+          </div>
+        </div>
+        <div class="big-chart" id="dailyChart"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-card-head">
+          <h2>Cumulative trades</h2>
+        </div>
+        <div class="big-chart" id="cumChart"></div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      Daily trade counts from Dune query #5741350 · cached hourly ·
+      <span id="lastUpdated"></span>
+    </footer>
+
+    <script src="kalshi.js"></script>
+  </body>
+</html>

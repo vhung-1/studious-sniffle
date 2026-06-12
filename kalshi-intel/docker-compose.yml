@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kalshi
+      POSTGRES_PASSWORD: kalshi
+      POSTGRES_DB: kalshi_intel
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kalshi -d kalshi_intel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Applies migrations, then exits.
+  migrate:
+    build: .
+    command: npx prisma migrate deploy
+    environment:
+      DATABASE_URL: postgresql://kalshi:kalshi@db:5432/kalshi_intel?schema=public
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://kalshi:kalshi@db:5432/kalshi_intel?schema=public
+      KALSHI_API_BASE: https://api.elections.kalshi.com/trade-api/v2
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Continuous trade ingester (same image, different command).
+  ingester:
+    build: .
+    restart: unless-stopped
+    command: npm run ingest
+    environment:
+      DATABASE_URL: postgresql://kalshi:kalshi@db:5432/kalshi_intel?schema=public
+      KALSHI_API_BASE: https://api.elections.kalshi.com/trade-api/v2
+      INGEST_INTERVAL_MS: "10000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

@@ -1,0 +1,19 @@
+{
+  "name": "prediction-market-tracker",
+  "version": "1.0.0",
+  "description": "Track live prediction markets (Polymarket) — prices, volume, movers, and a personal watchlist.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --env-file-if-exists=.env --watch server.js",
+    "build:dashboard": "node --env-file-if-exists=.env scripts/build-dashboard.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "license": "MIT"
+}
