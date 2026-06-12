@@ -1,0 +1,21 @@
+# Replit configuration — runs the Kalshi Intel dashboard in kalshi-intel/.
+# Full setup (database, migrations, ingestion) is in kalshi-intel/REPLIT.md.
+
+run = "cd kalshi-intel && npx next dev -H 0.0.0.0 -p 3000"
+entrypoint = "kalshi-intel/REPLIT.md"
+modules = ["nodejs-20"]
+
+[nix]
+channel = "stable-24_11"
+
+[env]
+NEXT_TELEMETRY_DISABLED = "1"
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["sh", "-c", "cd kalshi-intel && npm install && npx prisma generate && npm run build"]
+run = ["sh", "-c", "cd kalshi-intel && npx prisma migrate deploy && npx next start -H 0.0.0.0 -p 3000"]

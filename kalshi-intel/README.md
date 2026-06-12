@@ -73,6 +73,9 @@ and `(created_time, is_block_trade)`.
 
 ## Quick start (local)
 
+> **Running on Replit?** See [REPLIT.md](./REPLIT.md) for a step-by-step guide
+> (managed Postgres, migrations, ingestion, and deployment).
+
 Prerequisites: Node 18+ and a PostgreSQL instance.
 
 ```bash
