@@ -1,0 +1,44 @@
+// Kalshi market intelligence — data model.
+// Raw trades are stored verbatim (one row per Kalshi trade_id) so every
+// analytic is recomputable from source.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// One executed Kalshi trade. trade_id is the natural primary key, which makes
+/// ingestion idempotent (createMany + skipDuplicates can never double-count).
+model Trade {
+  tradeId         String   @id @map("trade_id")
+  ticker          String
+  countFp         Decimal  @map("count_fp") @db.Decimal(20, 4) // contracts traded
+  yesPriceDollars Decimal  @map("yes_price_dollars") @db.Decimal(10, 4)
+  noPriceDollars  Decimal  @map("no_price_dollars") @db.Decimal(10, 4)
+  createdTime     DateTime @map("created_time") @db.Timestamptz(6)
+  isBlockTrade    Boolean  @map("is_block_trade")
+  takerSide       String?  @map("taker_side")
+  ingestedAt      DateTime @default(now()) @map("ingested_at") @db.Timestamptz(6)
+
+  @@index([ticker])
+  @@index([createdTime])
+  @@index([isBlockTrade])
+  @@index([ticker, createdTime])
+  @@index([createdTime, isBlockTrade])
+  @@map("trades")
+}
+
+/// Singleton row tracking ingestion progress for incremental updates.
+model IngestState {
+  id              Int      @id @default(1)
+  lastCreatedTime DateTime? @map("last_created_time") @db.Timestamptz(6)
+  lastTradeId     String?  @map("last_trade_id")
+  totalIngested   BigInt   @default(0) @map("total_ingested")
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("ingest_state")
+}
