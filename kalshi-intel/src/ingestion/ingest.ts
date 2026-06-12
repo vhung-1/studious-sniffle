@@ -43,11 +43,20 @@ export async function ingestOnce(
   const state = await prisma.ingestState.findUnique({ where: { id: 1 } });
 
   // Incremental mode resumes from the last seen timestamp (with overlap).
-  // Backfill mode ignores that and walks newest -> oldest via the cursor to
-  // pull historical trades; dedup by trade_id PK keeps it idempotent and the
-  // forward-only `latest` tracking below means it never regresses ingest state.
+  // Backfill mode walks newest -> oldest via the cursor to pull historical
+  // trades; it resumes from the OLDEST trade already stored (via max_ts) so it
+  // never re-scans the region we already have. Dedup by trade_id PK keeps it
+  // idempotent and the forward-only `latest` tracking never regresses state.
   let minTs: number | undefined;
-  if (!opts.backfill && state?.lastCreatedTime) {
+  let maxTs: number | undefined;
+  if (opts.backfill) {
+    const oldest = await prisma.trade.findFirst({
+      orderBy: { createdTime: "asc" },
+      select: { createdTime: true },
+    });
+    // +1s overlap at the boundary; duplicates are skipped on insert.
+    if (oldest) maxTs = Math.floor(oldest.createdTime.getTime() / 1000) + 1;
+  } else if (state?.lastCreatedTime) {
     minTs = Math.floor(state.lastCreatedTime.getTime() / 1000) - OVERLAP_SEC;
   }
 
@@ -58,7 +67,7 @@ export async function ingestOnce(
   let oldest: Date | null = null;
 
   for await (const trades of kalshi.iterateTrades(
-    { minTs, limit: PAGE_LIMIT },
+    { minTs, maxTs, limit: PAGE_LIMIT },
     { maxPages: opts.maxPages },
   )) {
     pages += 1;
