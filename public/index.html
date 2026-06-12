@@ -49,6 +49,35 @@
       </div>
     </nav>
 
+    <section id="kalshiPanel" class="indicator" hidden>
+      <div class="indicator-head">
+        <div>
+          <h2>Prediction Markets (Kalshi)</h2>
+          <span class="source" id="kalshiSource">Dune Analytics #5741350</span>
+        </div>
+        <div class="indicator-metrics">
+          <div class="metric">
+            <span class="label">ADV (latest mo)</span>
+            <span class="big" id="kalshiAdv">—</span>
+          </div>
+          <div class="metric">
+            <span class="label">MoM</span>
+            <span class="chg" id="kalshiMom">—</span>
+          </div>
+          <div class="metric">
+            <span class="label">YoY</span>
+            <span class="chg" id="kalshiYoy">—</span>
+          </div>
+          <div class="metric">
+            <span class="label">Contracts (latest mo)</span>
+            <span class="big" id="kalshiTotal">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="indicator-chart" id="kalshiChart"></div>
+      <p class="indicator-note" id="kalshiNote"></p>
+    </section>
+
     <main id="grid" class="grid"></main>
     <p class="empty" id="empty" hidden></p>
 

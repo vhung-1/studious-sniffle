@@ -316,6 +316,89 @@ function sparkline(points, label) {
     </svg>`;
 }
 
+// --- Kalshi indicator panel --------------------------------------------------
+
+function fmtNum(n) {
+  if (n == null) return "—";
+  if (n >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return String(Math.round(n));
+}
+
+function setChange(el, pct) {
+  if (pct == null) {
+    el.textContent = "—";
+    el.className = "chg";
+    return;
+  }
+  const up = pct >= 0;
+  el.textContent = `${up ? "+" : ""}${pct.toFixed(1)}%`;
+  el.className = `chg ${up ? "up" : "down"}`;
+}
+
+async function loadKalshi() {
+  const panel = document.getElementById("kalshiPanel");
+  try {
+    const r = await fetch("/api/kalshi");
+    if (r.status === 503) {
+      panel.hidden = true; // Dune key not configured — hide silently
+      return;
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const { latest, series } = data;
+    if (!latest) {
+      panel.hidden = true;
+      return;
+    }
+
+    document.getElementById("kalshiSource").textContent = data.source;
+    document.getElementById("kalshiAdv").textContent = fmtNum(latest.adv);
+    document.getElementById("kalshiTotal").textContent = fmtNum(latest.totalContracts);
+    setChange(document.getElementById("kalshiMom"), latest.momPct);
+    setChange(document.getElementById("kalshiYoy"), latest.yoyPct);
+
+    document.getElementById("kalshiChart").innerHTML = barChart(
+      series.map((s) => ({ label: s.month, value: s.adv }))
+    );
+
+    const note = `Latest month: ${latest.month}` +
+      (latest.partial ? ` (partial — ${latest.calendarDays} days so far)` : "") +
+      ` · ADV = contracts ÷ calendar days · ${series.length}-month window`;
+    document.getElementById("kalshiNote").textContent = note;
+
+    panel.hidden = false;
+  } catch {
+    panel.hidden = true; // don't let the indicator break the dashboard
+  }
+}
+
+// Monthly bar chart (absolute values, e.g. ADV) as inline SVG.
+function barChart(items) {
+  if (!items || items.length === 0) return "";
+  const W = 720;
+  const H = 70;
+  const max = Math.max(...items.map((d) => d.value), 1);
+  const gap = 3;
+  const bw = (W - gap * (items.length - 1)) / items.length;
+  const bars = items
+    .map((d, i) => {
+      const h = Math.max(2, (d.value / max) * (H - 16));
+      const x = i * (bw + gap);
+      const y = H - h;
+      const last = i === items.length - 1;
+      return (
+        `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" ` +
+        `height="${h.toFixed(1)}" rx="2" fill="${last ? "#3b82f6" : "#2f6fd0"}" ` +
+        `opacity="${last ? 1 : 0.6}"><title>${escapeHtml(d.label)}: ${fmtNum(d.value)}</title></rect>`
+      );
+    })
+    .join("");
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img"
+    aria-label="Monthly average daily volume">${bars}</svg>`;
+}
+
 function escapeHtml(s) {
   return String(s ?? "").replace(
     /[&<>"']/g,
@@ -349,4 +432,6 @@ els.sort.addEventListener("change", (e) => {
 
 saveWatch();
 load();
+loadKalshi();
 setInterval(() => load({ silent: true }), REFRESH_MS);
+setInterval(loadKalshi, 3600000); // Dune data updates ~daily; refresh hourly

@@ -18,6 +18,10 @@ API, renders price-history sparklines, and lets you keep a personal watchlist.
 - **Watchlist** — star any market; it persists in your browser (`localStorage`)
   and refreshes on its own tab.
 - **Auto-refresh** — the dashboard quietly updates every 30 seconds.
+- **Kalshi indicator** (optional) — a "Prediction Markets (Kalshi)" panel fed by
+  [Dune Analytics](https://dune.com): monthly trade activity rolled up into
+  average daily volume (ADV) with month-over-month and year-over-year changes.
+  Hidden automatically unless a Dune key is configured.
 
 ## How it works
 
@@ -30,9 +34,33 @@ quirks (prices/outcomes arrive as JSON-encoded strings) into a stable shape:
 | `GET /api/markets` | Gamma `/markets` | trending / searched / sorted markets |
 | `GET /api/markets/by-ids` | Gamma `/markets` | refresh watchlisted markets |
 | `GET /api/history` | CLOB `/prices-history` | price series for sparklines |
+| `GET /api/kalshi` | Dune `/query/5741350/results/csv` | monthly Kalshi ADV / MoM / YoY |
 
 A 20–60s in-memory TTL cache keeps us well within Polymarket's rate limits even
-with multiple viewers.
+with multiple viewers. The Kalshi/Dune result is cached for an hour (the
+underlying query refreshes roughly daily).
+
+### Kalshi indicator (Dune Analytics)
+
+The `/api/kalshi` route pulls Dune query **#5741350** ("daily Kalshi trades":
+`date, Trades, Cumulative Trades`), rolls the daily counts into monthly totals,
+and derives **ADV** (contracts ÷ calendar days — the trailing partial month is
+measured over days elapsed), plus **MoM** and **YoY** change on ADV, over a
+13-month window.
+
+It's opt-in. Set the key in the environment — never commit it:
+
+```bash
+export DUNE_API_KEY=your_dune_key
+# optional: point at a different Dune query
+export KALSHI_DUNE_QUERY_ID=5741350
+npm start
+```
+
+Without `DUNE_API_KEY`, `/api/kalshi` returns `503` and the panel hides itself —
+the rest of the dashboard is unaffected. To swap the metric, change
+`KALSHI_DUNE_QUERY_ID` (or edit the default in `server.js`); the frontend
+contract is unchanged.
 
 ## Running it
 
@@ -49,11 +77,10 @@ port (default `3000`).
 
 ## Data source notes
 
-This tracker uses Polymarket's **public, key-less** Gamma and CLOB APIs, which
-are reachable without authentication. If you later want on-chain aggregates
-(e.g. cross-venue volume from [Dune Analytics](https://dune.com)), add a
-`DUNE_API_KEY` env var and a new route in `server.js` that queries Dune's
-`/api/v1` endpoints — the frontend's `/api/*` contract stays the same.
+The live market data uses Polymarket's **public, key-less** Gamma and CLOB APIs,
+which are reachable without authentication. The optional Kalshi indicator uses
+[Dune Analytics](https://dune.com) and requires `DUNE_API_KEY` (see above). The
+key is read from the environment and is never stored in the repo.
 
 ## Project layout
 

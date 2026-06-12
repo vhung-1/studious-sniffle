@@ -14,6 +14,13 @@ const PORT = process.env.PORT || 3000;
 const GAMMA = "https://gamma-api.polymarket.com";
 const CLOB = "https://clob.polymarket.com";
 
+// Dune Analytics — optional. Powers the Kalshi indicator panel. The key is
+// read from the environment (never committed); the query id defaults to the
+// "daily Kalshi trades" query but can be overridden.
+const DUNE_API = "https://api.dune.com/api/v1";
+const DUNE_KEY = process.env.DUNE_API_KEY || "";
+const KALSHI_QUERY_ID = process.env.KALSHI_DUNE_QUERY_ID || "5741350";
+
 const app = express();
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -38,6 +45,17 @@ async function fetchJson(url) {
     throw new Error(`upstream ${res.status} for ${url}`);
   }
   return res.json();
+}
+
+async function fetchText(url, headers = {}) {
+  const res = await fetch(url, {
+    headers: { accept: "text/csv", ...headers },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) {
+    throw new Error(`upstream ${res.status} for ${url}`);
+  }
+  return res.text();
 }
 
 // outcomes / outcomePrices / clobTokenIds arrive as JSON-encoded strings.
@@ -186,6 +204,90 @@ app.get("/api/history", async (req, res) => {
 
     const points = (data.history || []).map((h) => ({ t: h.t, p: h.p }));
     res.json({ points });
+  } catch (err) {
+    res.status(502).json({ error: String(err.message || err) });
+  }
+});
+
+// --- Kalshi indicator (Dune Analytics) --------------------------------------
+
+// Minimal CSV parser — the Dune export has clean, comma-free integer fields.
+function parseCsv(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(",").map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const cols = line.split(",");
+    const row = {};
+    headers.forEach((h, i) => (row[h] = (cols[i] ?? "").trim()));
+    return row;
+  });
+}
+
+// Roll daily trade counts up into monthly totals and derive ADV / MoM / YoY.
+// `rows` come from query #5741350: { date: "YYYY-MM-DD", Trades, "Cumulative Trades" }.
+function rollupKalshi(rows, monthsBack = 13) {
+  const byMonth = new Map(); // "YYYY-MM" -> { total, maxDay }
+  for (const r of rows) {
+    const date = r.date;
+    if (!date || date.length < 10) continue;
+    const month = date.slice(0, 7);
+    const day = Number(date.slice(8, 10));
+    const trades = num(r.Trades);
+    const cur = byMonth.get(month) || { total: 0, maxDay: 0 };
+    cur.total += trades;
+    cur.maxDay = Math.max(cur.maxDay, day);
+    byMonth.set(month, cur);
+  }
+
+  const months = [...byMonth.keys()].sort();
+  const lastMonth = months[months.length - 1];
+
+  const series = months.map((m) => {
+    const { total, maxDay } = byMonth.get(m);
+    const [y, mo] = m.split("-").map(Number);
+    const daysInMonth = new Date(y, mo, 0).getDate();
+    // The trailing month is usually partial; measure ADV over days elapsed.
+    const partial = m === lastMonth && maxDay < daysInMonth;
+    const calendarDays = partial ? maxDay : daysInMonth;
+    const adv = calendarDays ? total / calendarDays : 0;
+    return { month: m, totalContracts: total, calendarDays, adv, partial };
+  });
+
+  // MoM / YoY computed on ADV (normalizes for month length) using full history.
+  const advByMonth = new Map(series.map((s) => [s.month, s.adv]));
+  const pct = (cur, prev) => (prev ? ((cur - prev) / prev) * 100 : null);
+  for (const s of series) {
+    const [y, mo] = s.month.split("-").map(Number);
+    const prevM = `${mo === 1 ? y - 1 : y}-${String(mo === 1 ? 12 : mo - 1).padStart(2, "0")}`;
+    const prevY = `${y - 1}-${String(mo).padStart(2, "0")}`;
+    s.momPct = pct(s.adv, advByMonth.get(prevM));
+    s.yoyPct = pct(s.adv, advByMonth.get(prevY));
+  }
+
+  return series.slice(-monthsBack);
+}
+
+// GET /api/kalshi — monthly Kalshi trade activity from Dune query #5741350.
+app.get("/api/kalshi", async (_req, res) => {
+  if (!DUNE_KEY) {
+    return res
+      .status(503)
+      .json({ error: "DUNE_API_KEY not configured", configured: false });
+  }
+  try {
+    const series = await cached(`kalshi:${KALSHI_QUERY_ID}`, 3600000, async () => {
+      const text = await fetchText(
+        `${DUNE_API}/query/${KALSHI_QUERY_ID}/results/csv`,
+        { "x-dune-api-key": DUNE_KEY }
+      );
+      return rollupKalshi(parseCsv(text));
+    });
+    res.json({
+      source: `Dune Analytics #${KALSHI_QUERY_ID}`,
+      latest: series[series.length - 1] || null,
+      series,
+    });
   } catch (err) {
     res.status(502).json({ error: String(err.message || err) });
   }
