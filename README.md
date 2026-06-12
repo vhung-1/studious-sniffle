@@ -35,6 +35,7 @@ quirks (prices/outcomes arrive as JSON-encoded strings) into a stable shape:
 | `GET /api/markets/by-ids` | Gamma `/markets` | refresh watchlisted markets |
 | `GET /api/history` | CLOB `/prices-history` | price series for sparklines |
 | `GET /api/kalshi` | Dune `/query/5741350/results/csv` | monthly Kalshi ADV / MoM / YoY |
+| `GET /api/kalshi/daily` | Dune `/query/5741350/results/csv` | daily trade counts + rolling-average stats |
 
 A 20â€“60s in-memory TTL cache keeps us well within Polymarket's rate limits even
 with multiple viewers. The Kalshi/Dune result is cached for an hour (the
@@ -66,6 +67,14 @@ Without `DUNE_API_KEY`, `/api/kalshi` returns `503` and the panel hides itself â
 the rest of the dashboard is unaffected. To swap the metric, change
 `KALSHI_DUNE_QUERY_ID` (or edit the default in `server.js`); the frontend
 contract is unchanged.
+
+#### Daily dashboard
+
+A dedicated daily view lives at **`/kalshi.html`** (linked from the Kalshi panel
+on the main page). It charts every daily trade count back to inception with an
+interactive hover tooltip, a range selector (30D / 90D / 1Y / All), a cumulative
+chart, and stat cards (latest day, 7- and 30-day averages, 30-day total, peak
+day, all-time total). It's powered by `GET /api/kalshi/daily?range=30d|90d|1y|all`.
 
 ## Running it
 

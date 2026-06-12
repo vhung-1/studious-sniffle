@@ -270,6 +270,30 @@ function rollupKalshi(rows) {
   return series;
 }
 
+// Fetch + parse the raw daily rows once, cached for an hour. Both the monthly
+// and daily endpoints derive their views from this.
+async function getKalshiRows() {
+  return cached(`kalshi-rows:${KALSHI_QUERY_ID}`, 3600000, async () => {
+    const text = await fetchText(
+      `${DUNE_API}/query/${KALSHI_QUERY_ID}/results/csv`,
+      { "x-dune-api-key": DUNE_KEY }
+    );
+    return parseCsv(text);
+  });
+}
+
+// Normalize raw rows into a sorted daily series.
+function dailyKalshi(rows) {
+  return rows
+    .filter((r) => r.date && r.date.length >= 10)
+    .map((r) => ({
+      date: r.date.slice(0, 10),
+      trades: num(r.Trades),
+      cumulative: num(r["Cumulative Trades"]),
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
 // GET /api/kalshi[?months=N] — monthly Kalshi trade activity from Dune query
 // #5741350. Returns the full history back to inception by default; pass
 // `months` to limit the window (e.g. ?months=13).
@@ -280,13 +304,7 @@ app.get("/api/kalshi", async (req, res) => {
       .json({ error: "DUNE_API_KEY not configured", configured: false });
   }
   try {
-    const full = await cached(`kalshi:${KALSHI_QUERY_ID}`, 3600000, async () => {
-      const text = await fetchText(
-        `${DUNE_API}/query/${KALSHI_QUERY_ID}/results/csv`,
-        { "x-dune-api-key": DUNE_KEY }
-      );
-      return rollupKalshi(parseCsv(text));
-    });
+    const full = rollupKalshi(await getKalshiRows());
 
     const months = parseInt(req.query.months, 10);
     const series = months > 0 ? full.slice(-months) : full;
@@ -300,6 +318,48 @@ app.get("/api/kalshi", async (req, res) => {
         allTimeContracts: full.reduce((a, s) => a + s.totalContracts, 0),
       },
       latest: full[full.length - 1] || null,
+      series,
+    });
+  } catch (err) {
+    res.status(502).json({ error: String(err.message || err) });
+  }
+});
+
+// GET /api/kalshi/daily[?range=30d|90d|1y|all] — daily Kalshi trade counts.
+// Returns the full daily history by default plus rolling-average stats.
+app.get("/api/kalshi/daily", async (req, res) => {
+  if (!DUNE_KEY) {
+    return res
+      .status(503)
+      .json({ error: "DUNE_API_KEY not configured", configured: false });
+  }
+  try {
+    const all = dailyKalshi(await getKalshiRows());
+
+    const windows = { "30d": 30, "90d": 90, "1y": 365 };
+    const n = windows[req.query.range];
+    const series = n ? all.slice(-n) : all;
+
+    const avg = (arr) =>
+      arr.length ? arr.reduce((a, d) => a + d.trades, 0) / arr.length : 0;
+    const peak = all.reduce(
+      (best, d) => (!best || d.trades > best.trades ? d : best),
+      null
+    );
+
+    res.json({
+      source: `Dune Analytics #${KALSHI_QUERY_ID}`,
+      summary: {
+        firstDate: all[0]?.date || null,
+        lastDate: all[all.length - 1]?.date || null,
+        days: all.length,
+        allTimeContracts: all[all.length - 1]?.cumulative || 0,
+        latest: all[all.length - 1] || null,
+        avg7: avg(all.slice(-7)),
+        avg30: avg(all.slice(-30)),
+        total30: all.slice(-30).reduce((a, d) => a + d.trades, 0),
+        peak: peak ? { date: peak.date, trades: peak.trades } : null,
+      },
       series,
     });
   } catch (err) {
